@@ -1,6 +1,7 @@
 import type { AppData, AppSettings } from '../types';
 
 const STORAGE_KEY = 'work_platform_data';
+const INIT_FLAG_KEY = 'work_platform_initialized';
 const SCHEMA_VERSION = 1;
 
 const defaultSettings: AppSettings = {
@@ -56,6 +57,25 @@ export function saveAppData(data: AppData): boolean {
 
 export function clearAppData(): void {
   localStorage.removeItem(STORAGE_KEY);
+  // Keep the initialized flag so demo data is NOT re-seeded after a manual clear
+  localStorage.setItem(INIT_FLAG_KEY, 'true');
+}
+
+// ============================================================
+// First-run / Seed-tracking flag
+// ============================================================
+
+/**
+ * True only before the very first load ever happens on this browser.
+ * Once set, demo data will never be auto re-seeded again,
+ * even if the user clears all their data.
+ */
+export function hasInitialized(): boolean {
+  return localStorage.getItem(INIT_FLAG_KEY) === 'true';
+}
+
+export function markInitialized(): void {
+  localStorage.setItem(INIT_FLAG_KEY, 'true');
 }
 
 // ============================================================
