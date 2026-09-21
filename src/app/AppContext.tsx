@@ -2,7 +2,7 @@ import React, { createContext, useContext, useReducer, useEffect, useCallback } 
 import type {
   AppData, Task, CalendarEvent, Project, Contact, Note, AppSettings, NavPage, Toast,
 } from '../types';
-import { loadAppData, saveAppData, generateId } from '../services/storageService';
+import { loadAppData, saveAppData, generateId, hasInitialized, markInitialized } from '../services/storageService';
 import { generateSeedData } from '../data/seedData';
 import { nowISO } from '../utils/dateUtils';
 
@@ -230,12 +230,13 @@ const initialState: AppState = {
 export function AppProvider({ children }: { children: React.ReactNode }) {
   const [state, dispatch] = useReducer(reducer, initialState);
 
-  // Load data on mount, seed demo data if empty
+  // Load data on mount, seed demo data ONLY on the very first-ever run.
+  // After that, an empty state (e.g. from a manual "clear data") stays empty on refresh.
   useEffect(() => {
     const data = loadAppData();
-    // If no data yet, inject seed data
-    const isEmpty = data.tasks.length === 0 && data.calendarEvents.length === 0 && data.projects.length === 0;
-    if (isEmpty) {
+
+    if (!hasInitialized()) {
+      // True first-time user: no data and no init flag yet -> seed demo data
       const seed = generateSeedData();
       const seeded: AppData = {
         ...data,
@@ -246,8 +247,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         notes: seed.notes ?? [],
       };
       saveAppData(seeded);
+      markInitialized();
       dispatch({ type: 'LOAD_DATA', payload: seeded });
     } else {
+      // Returning user (including after a manual clear): load whatever is stored, even if empty
       dispatch({ type: 'LOAD_DATA', payload: data });
     }
   }, []);
