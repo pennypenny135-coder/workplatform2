@@ -1,0 +1,115 @@
+@import "tailwindcss";
+
+/* Dark mode — cyber-feel dark theme */
+:root {
+  color-scheme: dark;
+}
+
+/* Apply dark background to html and body */
+html, body {
+  background-color: #030712;
+  color: #f9fafb;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}
+
+/* Subtle grid overlay for cyber feel */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(6, 182, 212, 0.02) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(6, 182, 212, 0.02) 1px, transparent 1px);
+  background-size: 48px 48px;
+  pointer-events: none;
+  z-index: 0;
+}
+
+#root {
+  position: relative;
+  z-index: 1;
+}
+
+* {
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #374151;
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #4b5563;
+}
+
+/* Hide scrollbar but keep functional */
+.hide-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.hide-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* Toast animation */
+@keyframes slide-up {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-slide-up {
+  animation: slide-up 0.2s ease-out;
+}
+
+/* Safe area for iOS */
+.safe-area-pb {
+  padding-bottom: env(safe-area-inset-bottom, 0);
+}
+
+/* Calendar event chip that spans multiple days */
+.event-multiday-start {
+  border-radius: 4px 0 0 4px;
+}
+.event-multiday-end {
+  border-radius: 0 4px 4px 0;
+}
+.event-multiday-middle {
+  border-radius: 0;
+}
+
+/* Prose-like note content */
+.note-content {
+  line-height: 1.6;
+  white-space: pre-wrap;
+}
+
+/* Focus styles */
+:focus-visible {
+  outline: 2px solid #06b6d4;
+  outline-offset: 2px;
+}
+
+/* Smooth transitions */
+* {
+  transition-property: color, background-color, border-color;
+  transition-duration: 150ms;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+button, a, input, select, textarea {
+  transition: all 150ms;
+}
