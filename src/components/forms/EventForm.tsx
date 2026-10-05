@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useApp } from '../../app/AppContext';
 import { Input, Textarea, Select } from '../ui/Input';
 import { Button } from '../ui/Button';
-import type { CalendarEvent } from '../../types';
+import type { CalendarEvent, Recurrence } from '../../types';
 import { todayHK, localToISO, isoToLocalDate, isoToLocalTime } from '../../utils/dateUtils';
 
 interface EventFormProps {
@@ -37,6 +37,8 @@ export function EventForm({ event, onSuccess, onCancel, defaultDate }: EventForm
   const [color, setColor] = useState(event?.color ?? '#3b82f6');
   const [projectId, setProjectId] = useState(event?.projectId ?? '');
   const [contactId, setContactId] = useState(event?.contactId ?? '');
+  const [recurrence, setRecurrence] = useState<Recurrence>(event?.recurrence ?? 'none');
+  const [recurrenceEnd, setRecurrenceEnd] = useState(event?.recurrenceEnd ?? '');
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   const validate = () => {
@@ -63,6 +65,8 @@ export function EventForm({ event, onSuccess, onCancel, defaultDate }: EventForm
       contactId: contactId || null,
       taskId: event?.taskId ?? null,
       source: event?.source,
+      recurrence,
+      recurrenceEnd: recurrence === 'none' ? undefined : recurrenceEnd || undefined,
     };
 
     if (event) {
@@ -126,6 +130,27 @@ export function EventForm({ event, onSuccess, onCancel, defaultDate }: EventForm
         onChange={e => setColor(e.target.value)}
         options={COLOR_OPTIONS}
       />
+      <Select
+        label="重覆"
+        value={recurrence}
+        onChange={e => setRecurrence(e.target.value as Recurrence)}
+        options={[
+          { value: 'none', label: '不重覆' },
+          { value: 'monthly', label: '每月' },
+          { value: 'every-2-months', label: '每 2 個月' },
+          { value: 'quarterly', label: '每季' },
+          { value: 'yearly', label: '每年' },
+        ]}
+      />
+      {recurrence !== 'none' && (
+        <Input
+          label="重覆至（選填）"
+          type="date"
+          value={recurrenceEnd}
+          onChange={e => setRecurrenceEnd(e.target.value)}
+          hint="留空代表不設到期日，無限重覆"
+        />
+      )}
       <div className="grid grid-cols-2 gap-3">
         <Select label="專案" value={projectId} onChange={e => setProjectId(e.target.value)} options={projectOptions} />
         <Select label="客戶" value={contactId} onChange={e => setContactId(e.target.value)} options={contactOptions} />
