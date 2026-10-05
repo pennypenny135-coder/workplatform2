@@ -1,10 +1,11 @@
 import React, { createContext, useContext, useReducer, useEffect, useCallback } from 'react';
 import type {
-  AppData, Task, CalendarEvent, Project, Contact, Note, AppSettings, NavPage, Toast,
+  AppData, Task, CalendarEvent, Project, Contact, Note, AppSettings, NavPage, Toast, Recurrence,
 } from '../types';
 import { loadAppData, saveAppData, generateId, hasInitialized, markInitialized } from '../services/storageService';
 import { generateSeedData } from '../data/seedData';
 import { nowISO } from '../utils/dateUtils';
+import { expandRecurringEvent } from '../utils/recurrenceUtils';
 
 // ============================================================
 // State
@@ -29,6 +30,7 @@ type Action =
   | { type: 'DELETE_TASK'; payload: string }
   // Calendar Events
   | { type: 'ADD_EVENT'; payload: CalendarEvent }
+  | { type: 'ADD_RECURRING_EVENT'; payload: CalendarEvent[] }
   | { type: 'UPDATE_EVENT'; payload: CalendarEvent }
   | { type: 'DELETE_EVENT'; payload: string }
   | { type: 'SET_EVENTS'; payload: CalendarEvent[] }
@@ -80,6 +82,9 @@ function reducer(state: AppState, action: Action): AppState {
     // Calendar Events
     case 'ADD_EVENT':
       newState = { ...state, calendarEvents: [...state.calendarEvents, action.payload] };
+      break;
+    case 'ADD_RECURRING_EVENT':
+      newState = { ...state, calendarEvents: [...state.calendarEvents, ...action.payload] };
       break;
     case 'UPDATE_EVENT':
       newState = { ...state, calendarEvents: state.calendarEvents.map(e => e.id === action.payload.id ? action.payload : e) };
@@ -231,12 +236,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [state, dispatch] = useReducer(reducer, initialState);
 
   // Load data on mount, seed demo data ONLY on the very first-ever run.
-  // After that, an empty state (e.g. from a manual "clear data") stays empty on refresh.
   useEffect(() => {
     const data = loadAppData();
-
     if (!hasInitialized()) {
-      // True first-time user: no data and no init flag yet -> seed demo data
       const seed = generateSeedData();
       const seeded: AppData = {
         ...data,
@@ -250,7 +252,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       markInitialized();
       dispatch({ type: 'LOAD_DATA', payload: seeded });
     } else {
-      // Returning user (including after a manual clear): load whatever is stored, even if empty
       dispatch({ type: 'LOAD_DATA', payload: data });
     }
   }, []);
@@ -264,7 +265,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     } else if (theme === 'light') {
       root.classList.remove('dark');
     } else {
-      // system
       const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
       if (prefersDark) root.classList.add('dark');
       else root.classList.remove('dark');
@@ -301,9 +301,23 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   // ---- Event ----
   const addEvent = useCallback((event: Omit<CalendarEvent, 'id' | 'createdAt' | 'updatedAt'>): CalendarEvent => {
     const now = nowISO();
-    const newEvent: CalendarEvent = { ...event, id: generateId('evt'), createdAt: now, updatedAt: now };
-    dispatch({ type: 'ADD_EVENT', payload: newEvent });
-    return newEvent;
+    const recurrence = event.recurrence ?? 'none';
+    
+    const masterEvent: CalendarEvent = {
+      ...event,
+      id: generateId('evt'),
+      createdAt: now,
+      updatedAt: now,
+    };
+
+    if (recurrence !== 'none') {
+      const occurrences = expandRecurringEvent(masterEvent, 24);
+      dispatch({ type: 'ADD_RECURRING_EVENT', payload: occurrences });
+    } else {
+      dispatch({ type: 'ADD_EVENT', payload: masterEvent });
+    }
+    
+    return masterEvent;
   }, []);
 
   const updateEvent = useCallback((event: CalendarEvent) => {
