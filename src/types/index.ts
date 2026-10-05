@@ -1,17 +1,16 @@
-// ============================================================
 // Core Data Types
-// ============================================================
 
 export type TaskStatus = 'inbox' | 'next' | 'in-progress' | 'waiting' | 'completed' | 'cancelled';
 export type TaskPriority = 'low' | 'medium' | 'high' | 'urgent';
 export type ProjectStatus = 'planning' | 'active' | 'paused' | 'completed';
 export type ContactStatus = 'lead' | 'contacted' | 'proposal' | 'won' | 'lost';
 export type ThemeMode = 'light' | 'dark' | 'system';
-export type WeekStartsOn = 0 | 1; // 0 = Sunday, 1 = Monday
+export type WeekStartsOn = 0 | 1; // 0: Sunday, 1: Monday
 
-// ============================================================
+// Recurrence types
+export type Recurrence = 'none' | 'monthly' | 'every-2-months' | 'quarterly' | 'yearly';
+
 // Task
-// ============================================================
 export interface Task {
   id: string;
   title: string;
@@ -20,7 +19,7 @@ export interface Task {
   priority: TaskPriority;
   dueDate?: string; // ISO date string YYYY-MM-DD
   startTime?: string; // ISO datetime string
-  endTime?: string;   // ISO datetime string
+  endTime?: string; // ISO datetime string
   projectId?: string | null;
   contactId?: string | null;
   tags: string[];
@@ -32,14 +31,12 @@ export interface Task {
   updatedAt: string;
 }
 
-// ============================================================
 // Calendar Event
-// ============================================================
 export interface CalendarEvent {
   id: string;
   title: string;
   start: string; // ISO datetime string
-  end: string;   // ISO datetime string
+  end: string; // ISO datetime string
   description?: string;
   location?: string;
   color?: string;
@@ -48,13 +45,17 @@ export interface CalendarEvent {
   contactId?: string | null;
   source?: string;
   allDay?: boolean;
+
+  // Recurrence fields
+  recurrence?: Recurrence;
+  recurrenceEnd?: string; // YYYY-MM-DD
+  recurrenceParentId?: string | null;
+
   createdAt: string;
   updatedAt: string;
 }
 
-// ============================================================
 // Project
-// ============================================================
 export interface Project {
   id: string;
   name: string;
@@ -67,9 +68,7 @@ export interface Project {
   updatedAt: string;
 }
 
-// ============================================================
 // Contact
-// ============================================================
 export interface Contact {
   id: string;
   name: string;
@@ -84,9 +83,7 @@ export interface Contact {
   updatedAt: string;
 }
 
-// ============================================================
 // Note
-// ============================================================
 export interface Note {
   id: string;
   title: string;
@@ -98,18 +95,14 @@ export interface Note {
   updatedAt: string;
 }
 
-// ============================================================
 // Settings
-// ============================================================
 export interface AppSettings {
   theme: ThemeMode;
   language: string;
   weekStartsOn: WeekStartsOn;
 }
 
-// ============================================================
 // App Data Store
-// ============================================================
 export interface AppData {
   schemaVersion: number;
   calendarEvents: CalendarEvent[];
@@ -120,9 +113,7 @@ export interface AppData {
   settings: AppSettings;
 }
 
-// ============================================================
 // Import/Export Types
-// ============================================================
 export interface AppExport {
   schemaVersion: number;
   exportedAt: string;
@@ -142,7 +133,7 @@ export interface LegacyCalendarEventV1 {
   color?: string;
   category?: string;
   notes?: string;
-  tags?: string[];
+  tags?: string;
   recurrence?: string;
   recurrenceEnd?: string;
   status?: string;
@@ -184,9 +175,7 @@ export interface ImportResult {
   errors: string[];
 }
 
-// ============================================================
 // UI Types
-// ============================================================
 export type NavPage = 'dashboard' | 'tasks' | 'calendar' | 'projects' | 'contacts' | 'notes' | 'reports' | 'settings';
 
 export interface Toast {
