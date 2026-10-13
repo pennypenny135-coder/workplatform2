@@ -15,9 +15,9 @@ import {
 type CalendarView = 'month' | 'week' | 'day';
 
 export function CalendarPage() {
-  const { state, deleteEvent, showToast } = useApp();
+  const { state, deleteEvent, deleteEventSeries, showToast } = useApp();
   const [view, setView] = useState<CalendarView>('month');
-  const [currentDate, setCurrentDate] = useState(todayHK()); // YYYY-MM-DD
+  const [currentDate, setCurrentDate] = useState(todayHK());
   const [showAddModal, setShowAddModal] = useState(false);
   const [addDefaultDate, setAddDefaultDate] = useState<string | undefined>();
   const [editingEvent, setEditingEvent] = useState<CalendarEvent | null>(null);
@@ -27,7 +27,6 @@ export function CalendarPage() {
   const today = todayHK();
   const weekStartsOn = state.settings.weekStartsOn;
 
-  // Parse current date
   const [currentYear, currentMonth] = currentDate.split('-').map(Number);
 
   const navigate = (direction: 1 | -1) => {
@@ -47,7 +46,6 @@ export function CalendarPage() {
 
   const goToday = () => setCurrentDate(today);
 
-  // Get events for a date
   const getEventsForDate = (dateStr: string) =>
     state.calendarEvents.filter(e => {
       const start = isoToHKDate(e.start);
@@ -78,9 +76,16 @@ export function CalendarPage() {
     setSelectedDayEvents(null);
   };
 
+  const handleDeleteSeries = () => {
+    if (!deletingEvent?.recurrenceId) return;
+    deleteEventSeries(deletingEvent.recurrenceId);
+    showToast('success', '已刪除整個重複系列');
+    setDeletingEvent(null);
+    setSelectedDayEvents(null);
+  };
+
   return (
     <div className="flex flex-col h-full p-4 md:p-6 gap-4">
-      {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <button
@@ -117,7 +122,6 @@ export function CalendarPage() {
           >
             今天
           </button>
-          {/* View Toggle */}
           <div className="flex rounded-xl overflow-hidden border border-gray-700">
             {(['month', 'week', 'day'] as CalendarView[]).map(v => (
               <button
@@ -139,7 +143,6 @@ export function CalendarPage() {
         </div>
       </div>
 
-      {/* Calendar Body */}
       <div className="flex-1 overflow-auto">
         {view === 'month' && (
           <MonthView
@@ -172,7 +175,6 @@ export function CalendarPage() {
         )}
       </div>
 
-      {/* Day Events Modal */}
       {selectedDayEvents && (
         <Modal
           isOpen
@@ -205,7 +207,6 @@ export function CalendarPage() {
         </Modal>
       )}
 
-      {/* Add Modal */}
       <Modal isOpen={showAddModal} onClose={() => setShowAddModal(false)} title="新增行程" size="lg">
         <div className="p-5">
           <EventForm
@@ -216,7 +217,6 @@ export function CalendarPage() {
         </div>
       </Modal>
 
-      {/* Edit Modal */}
       {editingEvent && (
         <Modal isOpen onClose={() => setEditingEvent(null)} title="編輯行程" size="lg">
           <div className="p-5">
@@ -229,7 +229,6 @@ export function CalendarPage() {
         </Modal>
       )}
 
-      {/* Delete Confirm */}
       {deletingEvent && (
         <Modal isOpen onClose={() => setDeletingEvent(null)} title="刪除行程" size="sm">
           <div className="p-5 space-y-4">
@@ -238,16 +237,17 @@ export function CalendarPage() {
               <Button variant="secondary" onClick={() => setDeletingEvent(null)} className="flex-1">取消</Button>
               <Button variant="danger" onClick={handleDelete} className="flex-1">確定刪除</Button>
             </div>
+            {deletingEvent.recurrenceId && (
+              <Button variant="danger" onClick={handleDeleteSeries} className="w-full">
+                刪除整個重複系列
+              </Button>
+            )}
           </div>
         </Modal>
       )}
     </div>
   );
 }
-
-// ============================================================
-// Month View
-// ============================================================
 
 function MonthView({
   year, month, today, weekStartsOn, getEventsForDate, onDayClick, onEventClick
@@ -262,14 +262,12 @@ function MonthView({
 }) {
   const daysInMonth = getDaysInMonth(year, month);
   const firstDay = getFirstDayOfMonth(year, month);
-  // Shift for week start
   const startOffset = (firstDay - weekStartsOn + 7) % 7;
 
   const dayNames = weekStartsOn === 0
     ? ['日', '一', '二', '三', '四', '五', '六']
     : ['一', '二', '三', '四', '五', '六', '日'];
 
-  // Build calendar grid
   const cells: (string | null)[] = [];
   for (let i = 0; i < startOffset; i++) cells.push(null);
   for (let d = 1; d <= daysInMonth; d++) {
@@ -281,7 +279,6 @@ function MonthView({
 
   return (
     <div className="bg-gray-900 rounded-2xl border border-gray-800 overflow-hidden">
-      {/* Day headers */}
       <div className="grid grid-cols-7 border-b border-gray-800">
         {dayNames.map((d, i) => (
           <div
@@ -295,7 +292,6 @@ function MonthView({
           </div>
         ))}
       </div>
-      {/* Cells */}
       <div className="grid grid-cols-7">
         {cells.map((dateStr, idx) => {
           if (!dateStr) {
@@ -382,10 +378,6 @@ function MonthEventChip({ event, dateStr, onClick }: {
   );
 }
 
-// ============================================================
-// Week View
-// ============================================================
-
 function WeekView({
   startDate, today, getEventsForDate, onDayClick, onEventClick
 }: {
@@ -460,10 +452,6 @@ function WeekView({
   );
 }
 
-// ============================================================
-// Day View
-// ============================================================
-
 function DayView({ date, today, events, onEventClick, onAddClick }: {
   date: string;
   today: string;
@@ -500,10 +488,6 @@ function DayView({ date, today, events, onEventClick, onAddClick }: {
     </div>
   );
 }
-
-// ============================================================
-// Event List Item
-// ============================================================
 
 function EventListItem({ event, onEdit, onDelete }: {
   event: CalendarEvent;
