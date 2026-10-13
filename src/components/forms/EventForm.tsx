@@ -4,6 +4,7 @@ import { Input, Textarea, Select } from '../ui/Input';
 import { Button } from '../ui/Button';
 import type { CalendarEvent } from '../../types';
 import { todayHK, localToISO, isoToLocalDate, isoToLocalTime } from '../../utils/dateUtils';
+import { generateId } from '../../services/storageService';
 
 interface EventFormProps {
   event?: CalendarEvent;
@@ -23,6 +24,16 @@ const COLOR_OPTIONS = [
   { value: '#6b7280', label: '⚫ 灰色' },
 ];
 
+const RECURRENCE_OPTIONS = [
+  { value: '', label: '不重複' },
+  { value: 'daily', label: '每日' },
+  { value: 'weekly', label: '每週' },
+  { value: 'monthly', label: '每月' },
+  { value: 'every-2-months', label: '每2個月' },
+  { value: 'every-3-months', label: '每3個月' },
+  { value: 'yearly', label: '每年' },
+];
+
 export function EventForm({ event, onSuccess, onCancel, defaultDate }: EventFormProps) {
   const { addEvent, updateEvent, state } = useApp();
   const today = defaultDate ?? todayHK();
@@ -37,6 +48,8 @@ export function EventForm({ event, onSuccess, onCancel, defaultDate }: EventForm
   const [color, setColor] = useState(event?.color ?? '#3b82f6');
   const [projectId, setProjectId] = useState(event?.projectId ?? '');
   const [contactId, setContactId] = useState(event?.contactId ?? '');
+  const [recurrence, setRecurrence] = useState('');
+  const [recurrenceEnd, setRecurrenceEnd] = useState('');
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   const validate = () => {
@@ -45,30 +58,86 @@ export function EventForm({ event, onSuccess, onCancel, defaultDate }: EventForm
     const startISO = localToISO(startDate, startTime);
     const endISO = localToISO(endDate, endTime);
     if (endISO <= startISO) errs.endTime = '結束時間不可早於開始時間';
+    if (recurrence) {
+      if (!recurrenceEnd) {
+        errs.recurrenceEnd = '請選擇重複結束日期';
+      } else if (recurrenceEnd < startDate) {
+        errs.recurrenceEnd = '重複結束日期不可早於開始日期';
+      }
+    }
     setErrors(errs);
     return Object.keys(errs).length === 0;
+  };
+
+  const buildBaseEvent = () => ({
+    title: title.trim(),
+    description,
+    location,
+    color,
+    projectId: projectId || null,
+    contactId: contactId || null,
+    taskId: event?.taskId ?? null,
+    source: event?.source,
+  });
+
+  const addOccurrence = (occStartDate: string, recurrenceId: string | null) => {
+    const startISO = localToISO(occStartDate, startTime);
+    let endOccDate = occStartDate;
+    if (endDate !== startDate) {
+      const durationDays = Math.round((new Date(endDate).getTime() - new Date(startDate).getTime()) / 86400000);
+      const d = new Date(occStartDate);
+      d.setDate(d.getDate() + durationDays);
+      endOccDate = d.toISOString().slice(0, 10);
+    }
+    let endISO = localToISO(endOccDate, endTime);
+    if (endISO <= startISO) {
+      const d = new Date(endOccDate);
+      d.setDate(d.getDate() + 1);
+      endISO = localToISO(d.toISOString().slice(0, 10), endTime);
+    }
+    addEvent({
+      ...buildBaseEvent(),
+      start: startISO,
+      end: endISO,
+      recurrenceId,
+    });
   };
 
   const handleSubmit = () => {
     if (!validate()) return;
 
-    const eventData = {
-      title: title.trim(),
-      start: localToISO(startDate, startTime),
-      end: localToISO(endDate, endTime),
-      description,
-      location,
-      color,
-      projectId: projectId || null,
-      contactId: contactId || null,
-      taskId: event?.taskId ?? null,
-      source: event?.source,
-    };
+    if (!recurrence) {
+      if (event) {
+        updateEvent({
+          ...event,
+          ...buildBaseEvent(),
+          start: localToISO(startDate, startTime),
+          end: localToISO(endDate, endTime),
+          recurrenceId: event.recurrenceId ?? null,
+        });
+      } else {
+        addOccurrence(startDate, null);
+      }
+      onSuccess();
+      return;
+    }
 
-    if (event) {
-      updateEvent({ ...event, ...eventData });
-    } else {
-      addEvent(eventData);
+    const recurrenceId = generateId('rec');
+    const stepMonths = recurrence === 'monthly' ? 1 : recurrence === 'every-2-months' ? 2 : recurrence === 'every-3-months' ? 3 : recurrence === 'yearly' ? 12 : 0;
+    const stepDays = recurrence === 'daily' ? 1 : recurrence === 'weekly' ? 7 : 0;
+
+    let cursor = new Date(startDate + 'T00:00:00');
+    const end = new Date(recurrenceEnd + 'T00:00:00');
+    let guard = 0;
+    while (cursor <= end && guard < 1000) {
+      const occDate = cursor.toISOString().slice(0, 10);
+      addOccurrence(occDate, recurrenceId);
+      if (stepDays) {
+        cursor.setDate(cursor.getDate() + stepDays);
+      } else {
+        cursor.setMonth(cursor.getMonth() + stepMonths);
+      }
+      guard++;
     }
     onSuccess();
   };
@@ -106,6 +175,23 @@ export function EventForm({ event, onSuccess, onCancel, defaultDate }: EventForm
           onChange={e => setEndTime(e.target.value)}
           error={errors.endTime}
         />
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        <Select
+          label="重複"
+          value={recurrence}
+          onChange={e => setRecurrence(e.target.value)}
+          options={RECURRENCE_OPTIONS}
+        />
+        {recurrence && (
+          <Input
+            label="重複結束日期"
+            type="date"
+            value={recurrenceEnd}
+            onChange={e => setRecurrenceEnd(e.target.value)}
+            error={errors.recurrenceEnd}
+          />
+        )}
       </div>
       <Input
         label="地點"
