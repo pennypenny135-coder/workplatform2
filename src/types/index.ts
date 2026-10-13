@@ -18,9 +18,9 @@ export interface Task {
   description?: string;
   status: TaskStatus;
   priority: TaskPriority;
-  dueDate?: string; // ISO date string YYYY-MM-DD
-  startTime?: string; // ISO datetime string
-  endTime?: string;   // ISO datetime string
+  dueDate?: string;
+  startTime?: string;
+  endTime?: string;
   projectId?: string | null;
   contactId?: string | null;
   tags: string[];
@@ -37,9 +37,10 @@ export interface Task {
 // ============================================================
 export interface CalendarEvent {
   id: string;
+  recurrenceId?: string | null; // Same recurring series share this id; single events are null
   title: string;
-  start: string; // ISO datetime string
-  end: string;   // ISO datetime string
+  start: string;
+  end: string;
   description?: string;
   location?: string;
   color?: string;
@@ -61,8 +62,8 @@ export interface Project {
   description?: string;
   status: ProjectStatus;
   color: string;
-  dueDate?: string; // YYYY-MM-DD
-  progress: number; // 0-100
+  dueDate?: string;
+  progress: number;
   createdAt: string;
   updatedAt: string;
 }
@@ -77,8 +78,8 @@ export interface Contact {
   phone?: string;
   email?: string;
   status: ContactStatus;
-  lastContactDate?: string; // YYYY-MM-DD
-  nextFollowUpDate?: string; // YYYY-MM-DD
+  lastContactDate?: string;
+  nextFollowUpDate?: string;
   notes?: string;
   createdAt: string;
   updatedAt: string;
@@ -130,7 +131,6 @@ export interface AppExport {
   data: AppData;
 }
 
-// Legacy Calendar App format (format 1 - array)
 export interface LegacyCalendarEventV1 {
   id: string;
   title: string;
@@ -154,7 +154,6 @@ export interface LegacyCalendarEventV1 {
   contactId?: string | null;
 }
 
-// Legacy Calendar App format (format 2 - object with events array)
 export interface LegacyCalendarExportV2 {
   schemaVersion?: number;
   version?: string;
