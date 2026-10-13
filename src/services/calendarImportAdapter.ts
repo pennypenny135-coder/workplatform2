@@ -8,10 +8,6 @@ import type {
 } from '../types';
 import { generateId } from './storageService';
 
-// ============================================================
-// Parse raw JSON file
-// ============================================================
-
 export function parseCalendarFile(raw: string): LegacyCalendarEventV1[] {
   let parsed: unknown;
   try {
@@ -20,16 +16,13 @@ export function parseCalendarFile(raw: string): LegacyCalendarEventV1[] {
     throw new Error('這個檔案不是有效的 JSON');
   }
 
-  // Format 1: plain array of events
   if (Array.isArray(parsed)) {
     return parsed as LegacyCalendarEventV1[];
   }
 
-  // Format 2: { schemaVersion, events: [] }
   if (parsed && typeof parsed === 'object') {
     const obj = parsed as LegacyCalendarExportV2;
 
-    // Full app export with data wrapper
     if (obj && (obj as any).data?.calendarEvents) {
       return (obj as any).data.calendarEvents as LegacyCalendarEventV1[];
     }
@@ -38,7 +31,6 @@ export function parseCalendarFile(raw: string): LegacyCalendarEventV1[] {
       return obj.events;
     }
 
-    // Legacy calendar app: tasks array (the original app stores everything as "tasks")
     if (Array.isArray(obj.tasks)) {
       return obj.tasks;
     }
@@ -46,10 +38,6 @@ export function parseCalendarFile(raw: string): LegacyCalendarEventV1[] {
 
   throw new Error('找不到可匯入的 Calendar 行程，請確認檔案格式正確');
 }
-
-// ============================================================
-// Normalize a legacy event to CalendarEvent
-// ============================================================
 
 export function normalizeCalendarEvent(raw: LegacyCalendarEventV1): CalendarEvent | null {
   try {
@@ -59,37 +47,34 @@ export function normalizeCalendarEvent(raw: LegacyCalendarEventV1): CalendarEven
     let start: string;
     let end: string;
 
-    // Case A: already has start/end as ISO strings
     if (raw.start && raw.end) {
       start = normalizeDateTime(raw.start);
       end = normalizeDateTime(raw.end);
-    }
-    // Case B: has date + startTime/endTime (HH:MM format)
-    else if (raw.date && raw.startTime) {
+    } else if (raw.date && raw.startTime) {
       start = combineDateAndTime(raw.date, raw.startTime);
       const endTimeStr = raw.endTime ?? raw.startTime;
       end = combineDateAndTime(raw.date, endTimeStr);
-    }
-    // Case C: has startTime/endTime as full ISO
-    else if (raw.startTime && isISOString(raw.startTime)) {
+    } else if (raw.startTime && isISOString(raw.startTime)) {
       start = normalizeDateTime(raw.startTime);
       end = raw.endTime ? normalizeDateTime(raw.endTime) : addOneHour(start);
-    }
-    // Fallback: use date only
-    else if (raw.date) {
+    } else if (raw.date) {
       start = `${raw.date}T09:00:00+08:00`;
       end = `${raw.date}T10:00:00+08:00`;
     } else {
       return null;
     }
 
-    // Ensure end >= start
     if (new Date(end) < new Date(start)) {
       end = addOneHour(start);
     }
 
+    const recurrenceId = raw.recurrence
+      ? `rec-${encodeURIComponent(raw.title.trim())}-${encodeURIComponent(raw.recurrence)}`
+      : null;
+
     return {
       id: raw.id || generateId('evt'),
+      recurrenceId,
       title: raw.title.trim(),
       start,
       end,
@@ -109,10 +94,6 @@ export function normalizeCalendarEvent(raw: LegacyCalendarEventV1): CalendarEven
   }
 }
 
-// ============================================================
-// Detect duplicates
-// ============================================================
-
 export function detectDuplicateEvents(
   incoming: CalendarEvent[],
   existing: CalendarEvent[]
@@ -120,10 +101,6 @@ export function detectDuplicateEvents(
   const existingIds = new Set(existing.map(e => e.id));
   return incoming.filter(e => existingIds.has(e.id)).map(e => e.id);
 }
-
-// ============================================================
-// Build preview
-// ============================================================
 
 export function buildImportPreview(
   rawList: LegacyCalendarEventV1[],
@@ -153,10 +130,6 @@ export function buildImportPreview(
     errors,
   };
 }
-
-// ============================================================
-// Import with strategy
-// ============================================================
 
 export function importCalendarEvents(
   preview: ImportPreview,
@@ -202,10 +175,6 @@ export function importCalendarEvents(
   };
 }
 
-// ============================================================
-// Export helpers
-// ============================================================
-
 export function exportCalendarEvents(events: CalendarEvent[]): string {
   return JSON.stringify(
     {
@@ -218,37 +187,26 @@ export function exportCalendarEvents(events: CalendarEvent[]): string {
   );
 }
 
-// ============================================================
-// Utility helpers
-// ============================================================
-
 function isISOString(s: string): boolean {
   return s.includes('T') || s.includes('Z');
 }
 
 function normalizeDateTime(dt: string): string {
-  // If already has timezone offset, keep it
   if (dt.includes('+') || dt.endsWith('Z')) {
     return new Date(dt).toISOString();
   }
-  // If it looks like UTC (from legacy app), interpret as UTC
   if (dt.endsWith('Z') || dt.includes('.000Z')) {
     return new Date(dt).toISOString();
   }
-  // For bare ISO strings without timezone, treat as UTC (legacy app stores UTC)
   if (dt.includes('T')) {
     return new Date(dt).toISOString();
   }
-  // Date only
   return `${dt}T09:00:00.000Z`;
 }
 
 function combineDateAndTime(date: string, time: string): string {
-  // date: YYYY-MM-DD, time: HH:MM or HH:MM:SS
-  // Create as Hong Kong time (UTC+8)
   const [year, month, day] = date.split('-').map(Number);
   const [hour, minute] = time.split(':').map(Number);
-  // Store as UTC: HK time - 8 hours
   const utcDate = new Date(Date.UTC(year, month - 1, day, hour - 8, minute, 0));
   return utcDate.toISOString();
 }
