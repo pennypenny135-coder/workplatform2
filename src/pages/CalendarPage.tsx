@@ -47,18 +47,28 @@ export function CalendarPage() {
 
   const goToday = () => setCurrentDate(today);
 
+  // Calendar view: show all events for a date (no search filtering here)
   const getEventsForDate = (dateStr: string) =>
     state.calendarEvents.filter(e => {
       const start = isoToHKDate(e.start);
       const end = isoToHKDate(e.end);
-      if (!(start <= dateStr && end >= dateStr)) return false;
-      if (!searchTerm.trim()) return true;
-      const term = searchTerm.trim().toLowerCase();
-      return (
+      return start <= dateStr && end >= dateStr;
+    }).sort((a, b) => a.start.localeCompare(b.start));
+
+  // Search results list: filter ALL events by title/description
+  const getSearchResults = () => {
+    const term = searchTerm.trim().toLowerCase();
+    if (!term) return [];
+    return state.calendarEvents
+      .filter(e =>
         e.title.toLowerCase().includes(term) ||
         (e.description ?? '').toLowerCase().includes(term)
-      );
-    }).sort((a, b) => a.start.localeCompare(b.start));
+      )
+      .sort((a, b) => a.start.localeCompare(b.start));
+  };
+
+  const searchResults = getSearchResults();
+  const showSearchModal = searchTerm.trim().length > 0;
 
   const handleDayClick = (dateStr: string) => {
     const events = getEventsForDate(dateStr);
@@ -261,6 +271,66 @@ export function CalendarPage() {
           </div>
         </Modal>
       )}
+
+      {showSearchModal && (
+        <Modal
+          isOpen
+          onClose={() => setSearchTerm('')}
+          title="搜尋結果"
+          size="md"
+        >
+          <div className="p-4 space-y-3">
+            {searchResults.length === 0 ? (
+              <div className="p-6 text-center text-gray-500 text-sm">沒有符合的行程</div>
+            ) : (
+              searchResults.map(e => (
+                <SearchResultItem
+                  key={e.id}
+                  event={e}
+                  onEdit={() => { setEditingEvent(e); setSearchTerm(''); }}
+                  onDelete={() => { setDeletingEvent(e); setSearchTerm(''); }}
+                />
+              ))
+            )}
+          </div>
+        </Modal>
+      )}
+    </div>
+  );
+}
+
+function SearchResultItem({ event, onEdit, onDelete }: {
+  event: CalendarEvent;
+  onEdit: () => void;
+  onDelete: () => void;
+}) {
+  return (
+    <div className="flex items-center gap-3 p-3 rounded-xl bg-gray-800/50 border border-gray-700/50 hover:border-gray-600 transition-colors">
+      <div className="w-1 self-stretch rounded-full shrink-0" style={{ backgroundColor: event.color ?? '#3b82f6' }} />
+      <div className="flex-1 min-w-0">
+        <p className="text-sm font-medium text-white truncate">{event.title}</p>
+        <div className="flex items-center gap-3 mt-1 text-xs text-gray-500">
+          <span>{formatDateDisplay(isoToHKDate(event.start))}</span>
+          <span className="flex items-center gap-1">
+            <Clock size={11} />
+            {formatTimeHK(event.start)} — {formatTimeHK(event.end)}
+          </span>
+        </div>
+      </div>
+      <button
+        onClick={onEdit}
+        className="p-1.5 hover:bg-gray-700 rounded-lg text-gray-500 hover:text-gray-300 transition-colors shrink-0"
+        aria-label="編輯"
+      >
+        <Edit2 size={13} />
+      </button>
+      <button
+        onClick={onDelete}
+        className="p-1.5 hover:bg-red-900/30 rounded-lg text-gray-500 hover:text-red-400 transition-colors shrink-0"
+        aria-label="刪除"
+      >
+        <Trash2 size={13} />
+      </button>
     </div>
   );
 }
