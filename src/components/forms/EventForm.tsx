@@ -34,6 +34,10 @@ const RECURRENCE_OPTIONS = [
   { value: 'yearly', label: '每年' },
 ];
 
+// Timezone-safe: format a Date using LOCAL year/month/day
+const toISODate = (d: Date) =>
+  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+
 export function EventForm({ event, onSuccess, onCancel, defaultDate }: EventFormProps) {
   const { addEvent, updateEvent, state } = useApp();
   const today = defaultDate ?? todayHK();
@@ -85,15 +89,15 @@ export function EventForm({ event, onSuccess, onCancel, defaultDate }: EventForm
     let endOccDate = occStartDate;
     if (endDate !== startDate) {
       const durationDays = Math.round((new Date(endDate).getTime() - new Date(startDate).getTime()) / 86400000);
-      const d = new Date(occStartDate);
+      const d = new Date(occStartDate + 'T00:00:00');
       d.setDate(d.getDate() + durationDays);
-      endOccDate = d.toISOString().slice(0, 10);
+      endOccDate = toISODate(d);
     }
     let endISO = localToISO(endOccDate, endTime);
     if (endISO <= startISO) {
-      const d = new Date(endOccDate);
+      const d = new Date(endOccDate + 'T00:00:00');
       d.setDate(d.getDate() + 1);
-      endISO = localToISO(d.toISOString().slice(0, 10), endTime);
+      endISO = localToISO(toISODate(d), endTime);
     }
     addEvent({
       ...buildBaseEvent(),
@@ -126,12 +130,11 @@ export function EventForm({ event, onSuccess, onCancel, defaultDate }: EventForm
     const stepMonths = recurrence === 'monthly' ? 1 : recurrence === 'every-2-months' ? 2 : recurrence === 'every-3-months' ? 3 : recurrence === 'yearly' ? 12 : 0;
     const stepDays = recurrence === 'daily' ? 1 : recurrence === 'weekly' ? 7 : 0;
 
-    let cursor = new Date(startDate + 'T00:00:00');
+    const cursor = new Date(startDate + 'T00:00:00');
     const end = new Date(recurrenceEnd + 'T00:00:00');
     let guard = 0;
     while (cursor <= end && guard < 1000) {
-      const occDate = cursor.toISOString().slice(0, 10);
-      addOccurrence(occDate, recurrenceId);
+      addOccurrence(toISODate(cursor), recurrenceId);
       if (stepDays) {
         cursor.setDate(cursor.getDate() + stepDays);
       } else {

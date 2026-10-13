@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useApp } from '../app/AppContext';
-import { ChevronLeft, ChevronRight, Plus, Edit2, Trash2, MapPin, Clock } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Plus, Edit2, Trash2, MapPin, Clock, Search } from 'lucide-react';
 import { Modal } from '../components/ui/Modal';
 import { EventForm } from '../components/forms/EventForm';
 import { Button } from '../components/ui/Button';
@@ -23,6 +23,7 @@ export function CalendarPage() {
   const [editingEvent, setEditingEvent] = useState<CalendarEvent | null>(null);
   const [deletingEvent, setDeletingEvent] = useState<CalendarEvent | null>(null);
   const [selectedDayEvents, setSelectedDayEvents] = useState<{ date: string; events: CalendarEvent[] } | null>(null);
+  const [searchTerm, setSearchTerm] = useState('');
 
   const today = todayHK();
   const weekStartsOn = state.settings.weekStartsOn;
@@ -50,7 +51,13 @@ export function CalendarPage() {
     state.calendarEvents.filter(e => {
       const start = isoToHKDate(e.start);
       const end = isoToHKDate(e.end);
-      return start <= dateStr && end >= dateStr;
+      if (!(start <= dateStr && end >= dateStr)) return false;
+      if (!searchTerm.trim()) return true;
+      const term = searchTerm.trim().toLowerCase();
+      return (
+        e.title.toLowerCase().includes(term) ||
+        (e.description ?? '').toLowerCase().includes(term)
+      );
     }).sort((a, b) => a.start.localeCompare(b.start));
 
   const handleDayClick = (dateStr: string) => {
@@ -116,6 +123,15 @@ export function CalendarPage() {
           </h1>
         </div>
         <div className="flex items-center gap-2">
+          <div className="relative">
+            <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-500" />
+            <input
+              value={searchTerm}
+              onChange={e => setSearchTerm(e.target.value)}
+              placeholder="搜尋行程..."
+              className="pl-8 pr-3 py-1.5 text-xs rounded-lg bg-gray-800 text-white border border-gray-700 focus:border-cyan-500 outline-none w-32 md:w-48 transition-colors"
+            />
+          </div>
           <button
             onClick={goToday}
             className="px-3 py-1.5 text-xs font-medium rounded-lg bg-cyan-500/10 text-cyan-400 border border-cyan-500/30 hover:bg-cyan-500/20 transition-colors"
