@@ -6,56 +6,37 @@ import { loadAppData, saveAppData, generateId, hasInitialized, markInitialized }
 import { generateSeedData } from '../data/seedData';
 import { nowISO } from '../utils/dateUtils';
 
-// ============================================================
-// State
-// ============================================================
-
 interface AppState extends AppData {
   currentPage: NavPage;
   toasts: Toast[];
   isLoading: boolean;
 }
 
-// ============================================================
-// Actions
-// ============================================================
-
 type Action =
   | { type: 'LOAD_DATA'; payload: AppData }
   | { type: 'SET_PAGE'; payload: NavPage }
-  // Tasks
   | { type: 'ADD_TASK'; payload: Task }
   | { type: 'UPDATE_TASK'; payload: Task }
   | { type: 'DELETE_TASK'; payload: string }
-  // Calendar Events
   | { type: 'ADD_EVENT'; payload: CalendarEvent }
   | { type: 'UPDATE_EVENT'; payload: CalendarEvent }
   | { type: 'DELETE_EVENT'; payload: string }
+  | { type: 'DELETE_EVENT_SERIES'; payload: string }
   | { type: 'SET_EVENTS'; payload: CalendarEvent[] }
-  // Projects
   | { type: 'ADD_PROJECT'; payload: Project }
   | { type: 'UPDATE_PROJECT'; payload: Project }
   | { type: 'DELETE_PROJECT'; payload: string }
-  // Contacts
   | { type: 'ADD_CONTACT'; payload: Contact }
   | { type: 'UPDATE_CONTACT'; payload: Contact }
   | { type: 'DELETE_CONTACT'; payload: string }
-  // Notes
   | { type: 'ADD_NOTE'; payload: Note }
   | { type: 'UPDATE_NOTE'; payload: Note }
   | { type: 'DELETE_NOTE'; payload: string }
-  // Settings
   | { type: 'UPDATE_SETTINGS'; payload: Partial<AppSettings> }
-  // Full restore
   | { type: 'RESTORE_DATA'; payload: AppData }
   | { type: 'CLEAR_DATA' }
-  // Toasts
   | { type: 'ADD_TOAST'; payload: Toast }
   | { type: 'REMOVE_TOAST'; payload: string };
-
-// ============================================================
-// Reducer
-// ============================================================
 
 function reducer(state: AppState, action: Action): AppState {
   let newState: AppState;
@@ -66,7 +47,6 @@ function reducer(state: AppState, action: Action): AppState {
     case 'SET_PAGE':
       return { ...state, currentPage: action.payload };
 
-    // Tasks
     case 'ADD_TASK':
       newState = { ...state, tasks: [...state.tasks, action.payload] };
       break;
@@ -77,7 +57,6 @@ function reducer(state: AppState, action: Action): AppState {
       newState = { ...state, tasks: state.tasks.filter(t => t.id !== action.payload) };
       break;
 
-    // Calendar Events
     case 'ADD_EVENT':
       newState = { ...state, calendarEvents: [...state.calendarEvents, action.payload] };
       break;
@@ -87,11 +66,13 @@ function reducer(state: AppState, action: Action): AppState {
     case 'DELETE_EVENT':
       newState = { ...state, calendarEvents: state.calendarEvents.filter(e => e.id !== action.payload) };
       break;
+    case 'DELETE_EVENT_SERIES':
+      newState = { ...state, calendarEvents: state.calendarEvents.filter(e => e.recurrenceId !== action.payload) };
+      break;
     case 'SET_EVENTS':
       newState = { ...state, calendarEvents: action.payload };
       break;
 
-    // Projects
     case 'ADD_PROJECT':
       newState = { ...state, projects: [...state.projects, action.payload] };
       break;
@@ -102,7 +83,6 @@ function reducer(state: AppState, action: Action): AppState {
       newState = { ...state, projects: state.projects.filter(p => p.id !== action.payload) };
       break;
 
-    // Contacts
     case 'ADD_CONTACT':
       newState = { ...state, contacts: [...state.contacts, action.payload] };
       break;
@@ -113,7 +93,6 @@ function reducer(state: AppState, action: Action): AppState {
       newState = { ...state, contacts: state.contacts.filter(c => c.id !== action.payload) };
       break;
 
-    // Notes
     case 'ADD_NOTE':
       newState = { ...state, notes: [...state.notes, action.payload] };
       break;
@@ -124,12 +103,10 @@ function reducer(state: AppState, action: Action): AppState {
       newState = { ...state, notes: state.notes.filter(n => n.id !== action.payload) };
       break;
 
-    // Settings
     case 'UPDATE_SETTINGS':
       newState = { ...state, settings: { ...state.settings, ...action.payload } };
       break;
 
-    // Restore / Clear
     case 'RESTORE_DATA':
       newState = { ...state, ...action.payload };
       break;
@@ -144,7 +121,6 @@ function reducer(state: AppState, action: Action): AppState {
       };
       break;
 
-    // Toasts
     case 'ADD_TOAST':
       return { ...state, toasts: [...state.toasts, action.payload] };
     case 'REMOVE_TOAST':
@@ -154,7 +130,6 @@ function reducer(state: AppState, action: Action): AppState {
       return state;
   }
 
-  // Persist to localStorage after data changes
   saveAppData({
     schemaVersion: newState.schemaVersion,
     calendarEvents: newState.calendarEvents,
@@ -168,43 +143,30 @@ function reducer(state: AppState, action: Action): AppState {
   return newState;
 }
 
-// ============================================================
-// Context
-// ============================================================
-
 interface AppContextValue {
   state: AppState;
   dispatch: React.Dispatch<Action>;
-  // Helpers
   showToast: (type: Toast['type'], message: string, duration?: number) => void;
   navigate: (page: NavPage) => void;
-  // Task helpers
   addTask: (task: Omit<Task, 'id' | 'createdAt' | 'updatedAt'>) => Task;
   updateTask: (task: Task) => void;
   deleteTask: (id: string) => void;
-  // Event helpers
   addEvent: (event: Omit<CalendarEvent, 'id' | 'createdAt' | 'updatedAt'>) => CalendarEvent;
   updateEvent: (event: CalendarEvent) => void;
   deleteEvent: (id: string) => void;
-  // Project helpers
+  deleteEventSeries: (recurrenceId: string) => void;
   addProject: (project: Omit<Project, 'id' | 'createdAt' | 'updatedAt'>) => Project;
   updateProject: (project: Project) => void;
   deleteProject: (id: string) => void;
-  // Contact helpers
   addContact: (contact: Omit<Contact, 'id' | 'createdAt' | 'updatedAt'>) => Contact;
   updateContact: (contact: Contact) => void;
   deleteContact: (id: string) => void;
-  // Note helpers
   addNote: (note: Omit<Note, 'id' | 'createdAt' | 'updatedAt'>) => Note;
   updateNote: (note: Note) => void;
   deleteNote: (id: string) => void;
 }
 
 const AppContext = createContext<AppContextValue | null>(null);
-
-// ============================================================
-// Initial State
-// ============================================================
 
 const initialState: AppState = {
   schemaVersion: 1,
@@ -223,20 +185,13 @@ const initialState: AppState = {
   isLoading: true,
 };
 
-// ============================================================
-// Provider
-// ============================================================
-
 export function AppProvider({ children }: { children: React.ReactNode }) {
   const [state, dispatch] = useReducer(reducer, initialState);
 
-  // Load data on mount, seed demo data ONLY on the very first-ever run.
-  // After that, an empty state (e.g. from a manual "clear data") stays empty on refresh.
   useEffect(() => {
     const data = loadAppData();
 
     if (!hasInitialized()) {
-      // True first-time user: no data and no init flag yet -> seed demo data
       const seed = generateSeedData();
       const seeded: AppData = {
         ...data,
@@ -250,12 +205,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       markInitialized();
       dispatch({ type: 'LOAD_DATA', payload: seeded });
     } else {
-      // Returning user (including after a manual clear): load whatever is stored, even if empty
       dispatch({ type: 'LOAD_DATA', payload: data });
     }
   }, []);
 
-  // Apply theme
   useEffect(() => {
     const root = document.documentElement;
     const theme = state.settings.theme;
@@ -264,14 +217,15 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     } else if (theme === 'light') {
       root.classList.remove('dark');
     } else {
-      // system
       const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-      if (prefersDark) root.classList.add('dark');
-      else root.classList.remove('dark');
+      if (prefersDark) {
+        root.classList.add('dark');
+      } else {
+        root.classList.remove('dark');
+      }
     }
   }, [state.settings.theme]);
 
-  // ---- Toast ----
   const showToast = useCallback((type: Toast['type'], message: string, duration = 3000) => {
     const id = generateId('toast');
     dispatch({ type: 'ADD_TOAST', payload: { id, type, message, duration } });
@@ -282,7 +236,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     dispatch({ type: 'SET_PAGE', payload: page });
   }, []);
 
-  // ---- Task ----
   const addTask = useCallback((task: Omit<Task, 'id' | 'createdAt' | 'updatedAt'>): Task => {
     const now = nowISO();
     const newTask: Task = { ...task, id: generateId('task'), createdAt: now, updatedAt: now };
@@ -298,7 +251,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     dispatch({ type: 'DELETE_TASK', payload: id });
   }, []);
 
-  // ---- Event ----
   const addEvent = useCallback((event: Omit<CalendarEvent, 'id' | 'createdAt' | 'updatedAt'>): CalendarEvent => {
     const now = nowISO();
     const newEvent: CalendarEvent = { ...event, id: generateId('evt'), createdAt: now, updatedAt: now };
@@ -314,7 +266,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     dispatch({ type: 'DELETE_EVENT', payload: id });
   }, []);
 
-  // ---- Project ----
+  const deleteEventSeries = useCallback((recurrenceId: string) => {
+    dispatch({ type: 'DELETE_EVENT_SERIES', payload: recurrenceId });
+  }, []);
+
   const addProject = useCallback((project: Omit<Project, 'id' | 'createdAt' | 'updatedAt'>): Project => {
     const now = nowISO();
     const newProject: Project = { ...project, id: generateId('proj'), createdAt: now, updatedAt: now };
@@ -330,7 +285,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     dispatch({ type: 'DELETE_PROJECT', payload: id });
   }, []);
 
-  // ---- Contact ----
   const addContact = useCallback((contact: Omit<Contact, 'id' | 'createdAt' | 'updatedAt'>): Contact => {
     const now = nowISO();
     const newContact: Contact = { ...contact, id: generateId('contact'), createdAt: now, updatedAt: now };
@@ -346,7 +300,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     dispatch({ type: 'DELETE_CONTACT', payload: id });
   }, []);
 
-  // ---- Note ----
   const addNote = useCallback((note: Omit<Note, 'id' | 'createdAt' | 'updatedAt'>): Note => {
     const now = nowISO();
     const newNote: Note = { ...note, id: generateId('note'), createdAt: now, updatedAt: now };
@@ -367,7 +320,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       state, dispatch,
       showToast, navigate,
       addTask, updateTask, deleteTask,
-      addEvent, updateEvent, deleteEvent,
+      addEvent, updateEvent, deleteEvent, deleteEventSeries,
       addProject, updateProject, deleteProject,
       addContact, updateContact, deleteContact,
       addNote, updateNote, deleteNote,
