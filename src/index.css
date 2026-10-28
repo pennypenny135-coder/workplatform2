@@ -11,13 +11,3 @@ body {
   color: #e2e8f0 !important;
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
 }
-
-/* 自動清洗所有元件嘅硬性淺色邊框，防止起白線 */
-*, ::before, ::after {
-  border-color: #1e2230 !important;
-}
-
-/* 確保所有卡片面板擁有靚仔嘅 Vantage 深色實心底色 */
-.bg-white, [class*="bg-gray-"], [class*="bg-slate-"] {
-  background-color: #12141c !important;
-}
