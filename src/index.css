@@ -2,18 +2,17 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Vantage 專屬工業網格與深色主題 */
 :root {
   color-scheme: dark;
 }
 
-html, body {
+body {
   background-color: #0a0b0e;
   color: #e2e8f0;
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
 }
 
-/* Vantage 經典掃描網格底紋 */
+/* 經典 Vantage 掃描網格背景 */
 body::before {
   content: "";
   position: fixed;
