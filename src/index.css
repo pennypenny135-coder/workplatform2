@@ -12,13 +12,12 @@ body {
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
 }
 
-/* 確保所有卡片、面板、選單都有實心嘅 Vantage 深色底色與精準邊框，不再透明 */
-.bg-white, [class*="bg-gray-"], [class*="bg-slate-"], [class*="card"] {
-  background-color: #12141c !important;
+/* 自動清洗所有元件嘅硬性淺色邊框，防止起白線 */
+*, ::before, ::after {
   border-color: #1e2230 !important;
 }
 
-/* 文字顏色修正，確保清晰可讀 */
-h1, h2, h3, h4, h5, h6 {
-  color: #ffffff !important;
+/* 確保所有卡片面板擁有靚仔嘅 Vantage 深色實心底色 */
+.bg-white, [class*="bg-gray-"], [class*="bg-slate-"] {
+  background-color: #12141c !important;
 }
