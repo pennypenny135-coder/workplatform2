@@ -7,30 +7,18 @@
 }
 
 body {
-  background-color: #0a0b0e;
-  color: #e2e8f0;
+  background-color: #0a0b0e !important;
+  color: #e2e8f0 !important;
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
 }
 
-/* 確保背景網格絕對喺最底，唔會遮住任何內容 */
-body::before {
-  content: "";
-  position: fixed;
-  inset: 0;
-  background-image: 
-    linear-gradient(to right, #1e2230 1px, transparent 1px),
-    linear-gradient(to bottom, #1e2230 1px, transparent 1px);
-  background-size: 32px 32px;
-  pointer-events: none;
-  z-index: -1;
+/* 確保所有卡片、面板、選單都有實心嘅 Vantage 深色底色與精準邊框，不再透明 */
+.bg-white, [class*="bg-gray-"], [class*="bg-slate-"], [class*="card"] {
+  background-color: #12141c !important;
+  border-color: #1e2230 !important;
 }
 
-#root {
-  position: relative;
-  z-index: 1;
-}
-
-/* 確保所有原本嘅卡片有正確嘅深色底色與高科技微邊框，唔會再黐埋一舊 */
-.card, div[class*="bg-gray-"], div[class*="bg-slate-"], div[class*="rounded"] {
-  /* 如果原本元件冇寫實心底色，補返少許 Vantage 半透明表面質感 */
+/* 文字顏色修正，確保清晰可讀 */
+h1, h2, h3, h4, h5, h6 {
+  color: #ffffff !important;
 }
