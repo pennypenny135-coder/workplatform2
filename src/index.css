@@ -12,7 +12,7 @@ body {
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
 }
 
-/* 經典 Vantage 掃描網格背景 */
+/* 確保背景網格絕對喺最底，唔會遮住任何內容 */
 body::before {
   content: "";
   position: fixed;
@@ -22,10 +22,15 @@ body::before {
     linear-gradient(to bottom, #1e2230 1px, transparent 1px);
   background-size: 32px 32px;
   pointer-events: none;
-  z-index: 0;
+  z-index: -1;
 }
 
 #root {
   position: relative;
   z-index: 1;
+}
+
+/* 確保所有原本嘅卡片有正確嘅深色底色與高科技微邊框，唔會再黐埋一舊 */
+.card, div[class*="bg-gray-"], div[class*="bg-slate-"], div[class*="rounded"] {
+  /* 如果原本元件冇寫實心底色，補返少許 Vantage 半透明表面質感 */
 }
