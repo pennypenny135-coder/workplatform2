@@ -1,13 +1,15 @@
 import type { AppData, AppSettings } from '../types';
+import { supabase } from './supabaseClient';
 
-const STORAGE_KEY = 'work_platform_data';
-const INIT_FLAG_KEY = 'work_platform_initialized';
 const SCHEMA_VERSION = 1;
+const LEGACY_STORAGE_KEY = 'work_platform_data';
+const LEGACY_INIT_FLAG_KEY = 'work_platform_initialized';
+const CLOUD_SYNC_DELAY_MS = 800;
 
 const defaultSettings: AppSettings = {
   theme: 'dark',
   language: 'zh-HK',
-  weekStartsOn: 0, // Sunday
+  weekStartsOn: 0,
 };
 
 const defaultData: AppData = {
@@ -20,75 +22,155 @@ const defaultData: AppData = {
   settings: defaultSettings,
 };
 
-// ============================================================
-// Load & Save
-// ============================================================
+let currentUserId: string | null = null;
+let cloudSyncTimer: ReturnType<typeof setTimeout> | undefined;
+
+function getDataKey(userId: string | null): string {
+  return userId ? `work_platform_data_${userId}` : LEGACY_STORAGE_KEY;
+}
+
+function getInitKey(userId: string | null): string {
+  return userId ? `work_platform_initialized_${userId}` : LEGACY_INIT_FLAG_KEY;
+}
+
+function normalizeAppData(value: unknown): AppData {
+  const parsed = (value ?? {}) as Partial<AppData>;
+
+  return {
+    schemaVersion: parsed.schemaVersion ?? SCHEMA_VERSION,
+    calendarEvents: parsed.calendarEvents ?? [],
+    tasks: parsed.tasks ?? [],
+    projects: parsed.projects ?? [],
+    contacts: parsed.contacts ?? [],
+    notes: parsed.notes ?? [],
+    settings: {
+      ...defaultSettings,
+      ...(parsed.settings ?? {}),
+    },
+  };
+}
+
+export function createEmptyAppData(): AppData {
+  return { ...defaultData };
+}
+
+export function setCurrentUserId(userId: string | null): void {
+  currentUserId = userId;
+}
 
 export function loadAppData(): AppData {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return { ...defaultData };
-    const parsed = JSON.parse(raw) as Partial<AppData>;
-    // Merge with defaults to handle missing fields
-    return {
-      schemaVersion: parsed.schemaVersion ?? SCHEMA_VERSION,
-      calendarEvents: parsed.calendarEvents ?? [],
-      tasks: parsed.tasks ?? [],
-      projects: parsed.projects ?? [],
-      contacts: parsed.contacts ?? [],
-      notes: parsed.notes ?? [],
-      settings: { ...defaultSettings, ...(parsed.settings ?? {}) },
-    };
-  } catch (e) {
-    console.error('[StorageService] Failed to load data:', e);
-    return { ...defaultData };
+    const raw = localStorage.getItem(getDataKey(currentUserId));
+
+    if (!raw) {
+      return createEmptyAppData();
+    }
+
+    return normalizeAppData(JSON.parse(raw));
+  } catch (error) {
+    console.error('[StorageService] Failed to load local data:', error);
+    return createEmptyAppData();
   }
 }
 
-export function saveAppData(data: AppData): boolean {
+export function loadAppDataForUser(userId: string): AppData | null {
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+    const raw = localStorage.getItem(getDataKey(userId));
+
+    if (!raw) {
+      return null;
+    }
+
+    return normalizeAppData(JSON.parse(raw));
+  } catch (error) {
+    console.error('[StorageService] Failed to load user local data:', error);
+    return null;
+  }
+}
+
+export function saveLocalDataForUser(userId: string, data: AppData): boolean {
+  try {
+    localStorage.setItem(getDataKey(userId), JSON.stringify(data));
     return true;
-  } catch (e) {
-    console.error('[StorageService] Failed to save data:', e);
+  } catch (error) {
+    console.error('[StorageService] Failed to save user local data:', error);
     return false;
   }
 }
 
-export function clearAppData(): void {
-  localStorage.removeItem(STORAGE_KEY);
-  // Keep the initialized flag so demo data is NOT re-seeded after a manual clear
-  localStorage.setItem(INIT_FLAG_KEY, 'true');
+export function saveAppData(data: AppData): boolean {
+  const savedLocally = saveLocalDataForUser(currentUserId, data);
+  scheduleCloudSync(data);
+  return savedLocally;
 }
 
-// ============================================================
-// First-run / Seed-tracking flag
-// ============================================================
+function scheduleCloudSync(data: AppData): void {
+  if (!currentUserId) {
+    return;
+  }
 
-/**
- * True only before the very first load ever happens on this browser.
- * Once set, demo data will never be auto re-seeded again,
- * even if the user clears all their data.
- */
+  if (cloudSyncTimer) {
+    clearTimeout(cloudSyncTimer);
+  }
+
+  const userId = currentUserId;
+
+  cloudSyncTimer = setTimeout(() => {
+    saveCloudAppData(userId, data).catch(error => {
+      console.error('[StorageService] Failed to sync data to Supabase:', error);
+    });
+  }, CLOUD_SYNC_DELAY_MS);
+}
+
+export async function loadCloudAppData(userId: string): Promise<AppData | null> {
+  const { data, error } = await supabase
+    .from('user_data')
+    .select('data')
+    .eq('user_id', userId)
+    .maybeSingle();
+
+  if (error) {
+    throw error;
+  }
+
+  return data?.data ? normalizeAppData(data.data) : null;
+}
+
+export async function saveCloudAppData(userId: string, data: AppData): Promise<void> {
+  const { error } = await supabase
+    .from('user_data')
+    .upsert(
+      {
+        user_id: userId,
+        data,
+        updated_at: new Date().toISOString(),
+      },
+      {
+        onConflict: 'user_id',
+      }
+    );
+
+  if (error) {
+    throw error;
+  }
+}
+
+export function clearAppData(): void {
+  localStorage.removeItem(getDataKey(currentUserId));
+  localStorage.setItem(getInitKey(currentUserId), 'true');
+}
+
 export function hasInitialized(): boolean {
-  return localStorage.getItem(INIT_FLAG_KEY) === 'true';
+  return localStorage.getItem(getInitKey(currentUserId)) === 'true';
 }
 
 export function markInitialized(): void {
-  localStorage.setItem(INIT_FLAG_KEY, 'true');
+  localStorage.setItem(getInitKey(currentUserId), 'true');
 }
-
-// ============================================================
-// ID Generator
-// ============================================================
 
 export function generateId(prefix: string = 'id'): string {
   return `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 }
-
-// ============================================================
-// Export / Import Helpers
-// ============================================================
 
 export function exportFullAppJson(data: AppData): string {
   const exportObj = {
@@ -97,35 +179,22 @@ export function exportFullAppJson(data: AppData): string {
     appName: 'Work Platform',
     data,
   };
+
   return JSON.stringify(exportObj, null, 2);
 }
 
 export function parseAppJson(raw: string): AppData | null {
   try {
     const parsed = JSON.parse(raw);
-    // Support both wrapped and unwrapped formats
+
     if (parsed.data && typeof parsed.data === 'object') {
-      return {
-        schemaVersion: parsed.schemaVersion ?? SCHEMA_VERSION,
-        calendarEvents: parsed.data.calendarEvents ?? [],
-        tasks: parsed.data.tasks ?? [],
-        projects: parsed.data.projects ?? [],
-        contacts: parsed.data.contacts ?? [],
-        notes: parsed.data.notes ?? [],
-        settings: { ...defaultSettings, ...(parsed.data.settings ?? {}) },
-      };
+      return normalizeAppData(parsed.data);
     }
+
     if (parsed.schemaVersion !== undefined) {
-      return {
-        schemaVersion: parsed.schemaVersion ?? SCHEMA_VERSION,
-        calendarEvents: parsed.calendarEvents ?? [],
-        tasks: parsed.tasks ?? [],
-        projects: parsed.projects ?? [],
-        contacts: parsed.contacts ?? [],
-        notes: parsed.notes ?? [],
-        settings: { ...defaultSettings, ...(parsed.settings ?? {}) },
-      };
+      return normalizeAppData(parsed);
     }
+
     return null;
   } catch {
     return null;
@@ -134,15 +203,16 @@ export function parseAppJson(raw: string): AppData | null {
 
 export function exportTasksCsv(data: AppData): string {
   const headers = ['ID', '標題', '狀態', '優先級', '截止日期', '專案', '標籤', '建立時間'];
-  const rows = data.tasks.map(t => [
-    t.id,
-    `"${t.title}"`,
-    t.status,
-    t.priority,
-    t.dueDate ?? '',
-    t.projectId ?? '',
-    `"${t.tags.join(', ')}"`,
-    t.createdAt,
+  const rows = data.tasks.map(task => [
+    task.id,
+    `"${task.title}"`,
+    task.status,
+    task.priority,
+    task.dueDate ?? '',
+    task.projectId ?? '',
+    `"${task.tags.join(', ')}"`,
+    task.createdAt,
   ]);
-  return [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
+
+  return [headers.join(','), ...rows.map(row => row.join(','))].join('\n');
 }
