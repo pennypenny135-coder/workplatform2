@@ -1,6 +1,6 @@
 // Work Platform Service Worker
 // Cache version — increment to force update
-const CACHE_VERSION = 'work-platform-v1';
+const CACHE_VERSION = 'work-platform-v2';
 const STATIC_ASSETS = [
   '/',
   '/index.html',
