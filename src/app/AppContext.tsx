@@ -2,7 +2,17 @@ import React, { createContext, useContext, useReducer, useEffect, useCallback } 
 import type {
   AppData, Task, CalendarEvent, Project, Contact, Note, AppSettings, NavPage, Toast,
 } from '../types';
-import { loadAppData, saveAppData, generateId, hasInitialized, markInitialized } from '../services/storageService';
+import {
+  loadAppData,
+  loadAppDataForUser,
+  loadCloudAppData,
+  saveAppData,
+  saveLocalDataForUser,
+  setCurrentUserId,
+  markInitialized,
+  generateId,
+} from '../services/storageService';
+import { getCurrentUser } from '../services/authService';
 import { generateSeedData } from '../data/seedData';
 import { nowISO } from '../utils/dateUtils';
 
@@ -51,23 +61,23 @@ function reducer(state: AppState, action: Action): AppState {
       newState = { ...state, tasks: [...state.tasks, action.payload] };
       break;
     case 'UPDATE_TASK':
-      newState = { ...state, tasks: state.tasks.map(t => t.id === action.payload.id ? action.payload : t) };
+      newState = { ...state, tasks: state.tasks.map(task => task.id === action.payload.id ? action.payload : task) };
       break;
     case 'DELETE_TASK':
-      newState = { ...state, tasks: state.tasks.filter(t => t.id !== action.payload) };
+      newState = { ...state, tasks: state.tasks.filter(task => task.id !== action.payload) };
       break;
 
     case 'ADD_EVENT':
       newState = { ...state, calendarEvents: [...state.calendarEvents, action.payload] };
       break;
     case 'UPDATE_EVENT':
-      newState = { ...state, calendarEvents: state.calendarEvents.map(e => e.id === action.payload.id ? action.payload : e) };
+      newState = { ...state, calendarEvents: state.calendarEvents.map(event => event.id === action.payload.id ? action.payload : event) };
       break;
     case 'DELETE_EVENT':
-      newState = { ...state, calendarEvents: state.calendarEvents.filter(e => e.id !== action.payload) };
+      newState = { ...state, calendarEvents: state.calendarEvents.filter(event => event.id !== action.payload) };
       break;
     case 'DELETE_EVENT_SERIES':
-      newState = { ...state, calendarEvents: state.calendarEvents.filter(e => e.recurrenceId !== action.payload) };
+      newState = { ...state, calendarEvents: state.calendarEvents.filter(event => event.recurrenceId !== action.payload) };
       break;
     case 'SET_EVENTS':
       newState = { ...state, calendarEvents: action.payload };
@@ -77,30 +87,30 @@ function reducer(state: AppState, action: Action): AppState {
       newState = { ...state, projects: [...state.projects, action.payload] };
       break;
     case 'UPDATE_PROJECT':
-      newState = { ...state, projects: state.projects.map(p => p.id === action.payload.id ? action.payload : p) };
+      newState = { ...state, projects: state.projects.map(project => project.id === action.payload.id ? action.payload : project) };
       break;
     case 'DELETE_PROJECT':
-      newState = { ...state, projects: state.projects.filter(p => p.id !== action.payload) };
+      newState = { ...state, projects: state.projects.filter(project => project.id !== action.payload) };
       break;
 
     case 'ADD_CONTACT':
       newState = { ...state, contacts: [...state.contacts, action.payload] };
       break;
     case 'UPDATE_CONTACT':
-      newState = { ...state, contacts: state.contacts.map(c => c.id === action.payload.id ? action.payload : c) };
+      newState = { ...state, contacts: state.contacts.map(contact => contact.id === action.payload.id ? action.payload : contact) };
       break;
     case 'DELETE_CONTACT':
-      newState = { ...state, contacts: state.contacts.filter(c => c.id !== action.payload) };
+      newState = { ...state, contacts: state.contacts.filter(contact => contact.id !== action.payload) };
       break;
 
     case 'ADD_NOTE':
       newState = { ...state, notes: [...state.notes, action.payload] };
       break;
     case 'UPDATE_NOTE':
-      newState = { ...state, notes: state.notes.map(n => n.id === action.payload.id ? action.payload : n) };
+      newState = { ...state, notes: state.notes.map(note => note.id === action.payload.id ? action.payload : note) };
       break;
     case 'DELETE_NOTE':
-      newState = { ...state, notes: state.notes.filter(n => n.id !== action.payload) };
+      newState = { ...state, notes: state.notes.filter(note => note.id !== action.payload) };
       break;
 
     case 'UPDATE_SETTINGS':
@@ -124,7 +134,7 @@ function reducer(state: AppState, action: Action): AppState {
     case 'ADD_TOAST':
       return { ...state, toasts: [...state.toasts, action.payload] };
     case 'REMOVE_TOAST':
-      return { ...state, toasts: state.toasts.filter(t => t.id !== action.payload) };
+      return { ...state, toasts: state.toasts.filter(toast => toast.id !== action.payload) };
 
     default:
       return state;
@@ -189,35 +199,88 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [state, dispatch] = useReducer(reducer, initialState);
 
   useEffect(() => {
-    const data = loadAppData();
+    let cancelled = false;
 
-    if (!hasInitialized()) {
-      const seed = generateSeedData();
-      const seeded: AppData = {
-        ...data,
-        tasks: seed.tasks ?? [],
-        calendarEvents: seed.calendarEvents ?? [],
-        projects: seed.projects ?? [],
-        contacts: seed.contacts ?? [],
-        notes: seed.notes ?? [],
-      };
-      saveAppData(seeded);
-      markInitialized();
-      dispatch({ type: 'LOAD_DATA', payload: seeded });
-    } else {
-      dispatch({ type: 'LOAD_DATA', payload: data });
-    }
+    const initialise = async () => {
+      try {
+        const user = await getCurrentUser();
+
+        if (cancelled) {
+          return;
+        }
+
+        if (!user) {
+          dispatch({ type: 'LOAD_DATA', payload: loadAppData() });
+          return;
+        }
+
+        setCurrentUserId(user.id);
+
+        const cloudData = await loadCloudAppData(user.id);
+
+        if (cancelled) {
+          return;
+        }
+
+        if (cloudData) {
+          saveLocalDataForUser(user.id, cloudData);
+          markInitialized();
+          dispatch({ type: 'LOAD_DATA', payload: cloudData });
+          return;
+        }
+
+        const localData = loadAppDataForUser(user.id);
+
+        if (localData) {
+          dispatch({ type: 'LOAD_DATA', payload: localData });
+          return;
+        }
+
+        const seed = generateSeedData();
+        const seeded: AppData = {
+          schemaVersion: 1,
+          calendarEvents: seed.calendarEvents ?? [],
+          tasks: seed.tasks ?? [],
+          projects: seed.projects ?? [],
+          contacts: seed.contacts ?? [],
+          notes: seed.notes ?? [],
+          settings: {
+            theme: 'dark',
+            language: 'zh-HK',
+            weekStartsOn: 0,
+          },
+        };
+
+        saveAppData(seeded);
+        markInitialized();
+        dispatch({ type: 'LOAD_DATA', payload: seeded });
+      } catch (error) {
+        console.error('[AppContext] Failed to initialise data:', error);
+
+        if (!cancelled) {
+          dispatch({ type: 'LOAD_DATA', payload: loadAppData() });
+        }
+      }
+    };
+
+    initialise();
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   useEffect(() => {
     const root = document.documentElement;
     const theme = state.settings.theme;
+
     if (theme === 'dark') {
       root.classList.add('dark');
     } else if (theme === 'light') {
       root.classList.remove('dark');
     } else {
       const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+
       if (prefersDark) {
         root.classList.add('dark');
       } else {
@@ -331,7 +394,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 }
 
 export function useApp() {
-  const ctx = useContext(AppContext);
-  if (!ctx) throw new Error('useApp must be used within AppProvider');
-  return ctx;
+  const context = useContext(AppContext);
+
+  if (!context) {
+    throw new Error('useApp must be used within AppProvider');
+  }
+
+  return context;
 }
